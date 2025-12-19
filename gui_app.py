@@ -50,16 +50,68 @@ class ImageUploaderGUI:
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         main_container.columnconfigure(1, weight=1)
-        main_container.rowconfigure(1, weight=1)
+        main_container.rowconfigure(2, weight=1)  # Updated to row 2 for the main content area
         
         # Title
         title_label = ttk.Label(main_container, text="PowerPoint Image Uploader", 
                                font=('Helvetica', 20, 'bold'))
         title_label.grid(row=0, column=0, columnspan=2, pady=(0, 10))
         
+        # Actions Banner (horizontal toolbar across the top)
+        actions_frame = ttk.Frame(main_container, padding="8")
+        actions_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
+        
+        # Add a subtle border and background
+        actions_container = ttk.LabelFrame(actions_frame, text="Quick Actions", padding="10")
+        actions_container.pack(fill=tk.X)
+        
+        # Create horizontal layout with organized button groups
+        # Group 1: Data Management
+        data_group = ttk.Frame(actions_container)
+        data_group.pack(side=tk.LEFT, padx=(0, 15))
+        
+        ttk.Button(data_group, text="🔄 Refresh", 
+                  command=self.refresh_image_list, width=10).pack(side=tk.LEFT, padx=2)
+        
+        ttk.Button(data_group, text="✏️ Edit Group", 
+                  command=self.edit_group, width=11).pack(side=tk.LEFT, padx=2)
+        
+        ttk.Button(data_group, text="🎨 Edit Type", 
+                  command=self.edit_type, width=10).pack(side=tk.LEFT, padx=2)
+        
+        # Group 2: Creation Tools
+        create_group = ttk.Frame(actions_container)
+        create_group.pack(side=tk.LEFT, padx=(0, 15))
+        
+        ttk.Button(create_group, text="🎨 Design Layout", 
+                  command=self.design_layout, width=13).pack(side=tk.LEFT, padx=2)
+        
+        ttk.Button(create_group, text="📊 Generate PPT", 
+                  command=self.generate_powerpoint, width=13).pack(side=tk.LEFT, padx=2)
+        
+        # Group 3: File Operations
+        file_group = ttk.Frame(actions_container)
+        file_group.pack(side=tk.LEFT, padx=(0, 15))
+        
+        ttk.Button(file_group, text="� Details", 
+                  command=self.show_details, width=9).pack(side=tk.LEFT, padx=2)
+        
+        ttk.Button(file_group, text="� Export", 
+                  command=self.export_index, width=9).pack(side=tk.LEFT, padx=2)
+        
+        # Group 4: Deletion (separated for safety)
+        delete_group = ttk.Frame(actions_container)
+        delete_group.pack(side=tk.LEFT)
+        
+        ttk.Button(delete_group, text="�️ Remove", 
+                  command=self.remove_selected, width=9).pack(side=tk.LEFT, padx=2)
+        
+        ttk.Button(delete_group, text="🗑️ Clear All", 
+                  command=self.clear_index, width=10).pack(side=tk.LEFT, padx=2)
+        
         # Left Panel - Controls
         left_panel = ttk.Frame(main_container, padding="5")
-        left_panel.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(0, 10))
+        left_panel.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(0, 10))
         
         # Upload Section
         upload_frame = ttk.LabelFrame(left_panel, text="Upload Images", padding="10")
@@ -111,69 +163,48 @@ class ImageUploaderGUI:
         self.identifier_combo.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=2)
         self.identifier_combo.bind('<<ComboboxSelected>>', lambda e: self.apply_filters())
         
+        # Filter by format
+        ttk.Label(search_frame, text="Format:").grid(row=6, column=0, sticky=tk.W, pady=(10, 2))
+        self.format_filter_var = tk.StringVar(value="All Formats")
+        self.format_combo = ttk.Combobox(search_frame, textvariable=self.format_filter_var,
+                                        state='readonly', width=27)
+        self.format_combo['values'] = ["All Formats"]
+        self.format_combo.grid(row=7, column=0, sticky=(tk.W, tk.E), pady=2)
+        self.format_combo.bind('<<ComboboxSelected>>', lambda e: self.apply_filters())
+        
         ttk.Button(search_frame, text="🔍 Apply Filters", 
-                  command=self.apply_filters).grid(row=6, column=0, pady=(10, 5))
+                  command=self.apply_filters).grid(row=8, column=0, pady=(10, 5))
         
         ttk.Button(search_frame, text="Clear All Filters", 
-                  command=self.clear_filters).grid(row=7, column=0, pady=5)
+                  command=self.clear_filters).grid(row=9, column=0, pady=5)
         
         search_frame.columnconfigure(0, weight=1)
         
-        # Actions Section with scrollbar
-        actions_frame = ttk.LabelFrame(left_panel, text="Actions", padding="10")
-        actions_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
-        
-        # Create canvas and scrollbar for actions
-        actions_canvas = tk.Canvas(actions_frame, height=150, highlightthickness=0)
-        actions_scrollbar = ttk.Scrollbar(actions_frame, orient="vertical", command=actions_canvas.yview)
-        scrollable_actions = ttk.Frame(actions_canvas)
-        
-        scrollable_actions.bind(
-            "<Configure>",
-            lambda e: actions_canvas.configure(scrollregion=actions_canvas.bbox("all"))
-        )
-        
-        actions_canvas.create_window((0, 0), window=scrollable_actions, anchor="nw")
-        actions_canvas.configure(yscrollcommand=actions_scrollbar.set)
-        
-        actions_canvas.pack(side="left", fill="both", expand=True)
-        actions_scrollbar.pack(side="right", fill="y")
-        
-        # Add action buttons to scrollable frame
-        ttk.Button(scrollable_actions, text="🔄 Refresh List", 
-                  command=self.refresh_image_list, width=25).grid(row=0, column=0, pady=5)
-        
-        ttk.Button(scrollable_actions, text="✏️ Edit Group", 
-                  command=self.edit_group, width=25).grid(row=1, column=0, pady=5)
-        
-        ttk.Button(scrollable_actions, text="🎨 Design Layout", 
-                  command=self.design_layout, width=25).grid(row=2, column=0, pady=5)
-        
-        ttk.Button(scrollable_actions, text="📊 Generate PowerPoint", 
-                  command=self.generate_powerpoint, width=25).grid(row=3, column=0, pady=5)
-        
-        ttk.Button(scrollable_actions, text="🗑️ Remove Selected", 
-                  command=self.remove_selected, width=25).grid(row=4, column=0, pady=5)
-        
-        ttk.Button(scrollable_actions, text="📋 Show Details", 
-                  command=self.show_details, width=25).grid(row=5, column=0, pady=5)
-        
-        ttk.Button(scrollable_actions, text="💾 Export Index", 
-                  command=self.export_index, width=25).grid(row=6, column=0, pady=5)
-        
-        ttk.Button(scrollable_actions, text="🗑️ Clear Index", 
-                  command=self.clear_index, width=25).grid(row=7, column=0, pady=5)
-        
         # Right Panel - Image List
         right_panel = ttk.Frame(main_container, padding="5")
-        right_panel.grid(row=1, column=1, sticky=(tk.W, tk.E, tk.N, tk.S))
+        right_panel.grid(row=2, column=1, sticky=(tk.W, tk.E, tk.N, tk.S))
         right_panel.columnconfigure(0, weight=1)
         right_panel.rowconfigure(1, weight=1)
         
-        # Image list label
+        # Image list label with selection instructions
         list_label = ttk.Label(right_panel, text="Uploaded Images", 
                               font=('Helvetica', 14, 'bold'))
-        list_label.grid(row=0, column=0, sticky=tk.W, pady=(0, 5))
+        list_label.grid(row=0, column=0, sticky=tk.W, pady=(0, 2))
+        
+        # Selection help text and status
+        help_frame = ttk.Frame(right_panel)
+        help_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(18, 3))
+        help_frame.columnconfigure(0, weight=1)
+        
+        help_label = ttk.Label(help_frame, 
+                              text="💡 Click & drag to select multiple images, Ctrl+Click to add/remove", 
+                              font=('Helvetica', 9), foreground="gray")
+        help_label.grid(row=0, column=0, sticky=tk.W)
+        
+        # Selection status label
+        self.selection_status_label = ttk.Label(help_frame, text="", 
+                                               font=('Helvetica', 9), foreground="blue")
+        self.selection_status_label.grid(row=0, column=1, sticky=tk.E)
         
         # Treeview for images
         tree_frame = ttk.Frame(right_panel)
@@ -185,11 +216,11 @@ class ImageUploaderGUI:
         vsb = ttk.Scrollbar(tree_frame, orient="vertical")
         hsb = ttk.Scrollbar(tree_frame, orient="horizontal")
         
-        # Treeview
+        # Treeview with multi-select capability
         self.tree = ttk.Treeview(tree_frame, columns=("Group", "ID", "Identifier", "Filename", 
                                                       "Format", "Dimensions", "Size", "Date"),
                                 show="headings", yscrollcommand=vsb.set, 
-                                xscrollcommand=hsb.set)
+                                xscrollcommand=hsb.set, selectmode="extended")
         
         vsb.config(command=self.tree.yview)
         hsb.config(command=self.tree.xview)
@@ -226,6 +257,16 @@ class ImageUploaderGUI:
         
         # Bind selection change to update preview when using arrow keys
         self.tree.bind("<<TreeviewSelect>>", self.on_selection_change)
+        
+        # Add drag-to-select functionality
+        self.drag_start_y = None
+        self.drag_start_item = None
+        self.is_dragging = False
+        
+        # Bind drag selection events
+        self.tree.bind("<ButtonPress-1>", self.on_drag_start)
+        self.tree.bind("<B1-Motion>", self.on_drag_motion)
+        self.tree.bind("<ButtonRelease-1>", self.on_drag_end)
         
         # Preview panel with close button
         preview_frame = ttk.LabelFrame(right_panel, text="Preview", padding="10")
@@ -383,6 +424,16 @@ class ImageUploaderGUI:
         sorted_identifiers = sorted(identifier_types)
         self.identifier_combo['values'] = ["All Types"] + sorted_identifiers
         
+        # Update format filter dropdown with all formats that actually appear in the data
+        format_types = set()
+        for img in images:
+            img_format = img.get('format')
+            if img_format:
+                format_types.add(img_format)
+        
+        sorted_formats = sorted(format_types)
+        self.format_combo['values'] = ["All Formats"] + sorted_formats
+        
         # Populate tree
         for img in images:
             metadata = img.get('metadata', {})
@@ -436,6 +487,7 @@ class ImageUploaderGUI:
         query = self.search_var.get().strip()
         group_filter = self.group_filter_var.get()
         identifier_filter = self.identifier_filter_var.get()
+        format_filter = self.format_filter_var.get()
         
         # Clear existing items
         for item in self.tree.get_children():
@@ -450,6 +502,7 @@ class ImageUploaderGUI:
             metadata = img.get('metadata', {})
             numerical_prefix = metadata.get('numerical_prefix', '')
             identifier = metadata.get('identifier', '')
+            img_format = img.get('format', '')
             
             # Format group label for comparison
             group_label = ImageIdentifier.format_group_label(numerical_prefix, identifier)
@@ -463,6 +516,10 @@ class ImageUploaderGUI:
             
             # Apply identifier filter
             if identifier_filter != "All Types" and identifier != identifier_filter:
+                continue
+            
+            # Apply format filter
+            if format_filter != "All Formats" and img_format != format_filter:
                 continue
             
             # Apply text search
@@ -503,6 +560,7 @@ class ImageUploaderGUI:
         self.search_var.set("")
         self.group_filter_var.set("All Groups")
         self.identifier_filter_var.set("All Types")
+        self.format_filter_var.set("All Formats")
         self.refresh_image_list()
     
     def edit_group(self):
@@ -625,6 +683,112 @@ class ImageUploaderGUI:
         # Focus on entry
         group_entry.focus()
     
+    def edit_type(self):
+        """Allow user to manually edit the image type/identifier of selected image(s)"""
+        selection = self.tree.selection()
+        if not selection:
+            messagebox.showwarning("No Selection", "Please select one or more images to edit.")
+            return
+        
+        # Get selected image IDs
+        selected_ids = []
+        for item in selection:
+            values = self.tree.item(item)['values']
+            selected_ids.append(int(values[1]))  # ID is column index 1
+        
+        # Create edit dialog
+        edit_window = tk.Toplevel(self.root)
+        edit_window.title("Edit Image Type")
+        edit_window.geometry("500x400")
+        edit_window.transient(self.root)
+        
+        # Main frame
+        main_frame = ttk.Frame(edit_window, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        ttk.Label(main_frame, text=f"Editing {len(selected_ids)} image(s)", 
+                 font=('Helvetica', 12, 'bold')).pack(pady=(0, 10))
+        
+        from image_uploader import ImageIdentifier
+        
+        # Type selection
+        type_frame = ttk.Frame(main_frame)
+        type_frame.pack(fill=tk.X, pady=10)
+        
+        ttk.Label(type_frame, text="New Image Type:").pack(anchor='w', pady=(0, 5))
+        
+        type_var = tk.StringVar()
+        type_combo = ttk.Combobox(type_frame, textvariable=type_var, 
+                                 values=ImageIdentifier.ALL_IDENTIFIERS, 
+                                 state='readonly', width=40)
+        type_combo.pack(fill=tk.X)
+        
+        # Set current type if all selected images have the same type
+        current_types = set()
+        for img_id in selected_ids:
+            img = self.uploader.index.get_image(img_id)
+            if img:
+                current_type = img.get('metadata', {}).get('identifier', '')
+                if current_type:
+                    current_types.add(current_type)
+        
+        if len(current_types) == 1:
+            type_var.set(list(current_types)[0])
+        
+        # Info text
+        info_frame = ttk.Frame(main_frame)
+        info_frame.pack(fill=tk.X, pady=10)
+        
+        info_text = ("Available image types:\n\n"
+                    "• Spectrum: For spectroscopy data\n"
+                    "• Map/Maps: For elemental maps\n"
+                    "• Electron Image: For SEM/TEM images\n"
+                    "• HAADF: High-angle annular dark field\n"
+                    "• BF: Bright field\n"
+                    "• DF: Dark field\n"
+                    "• And more...\n\n"
+                    "The image type affects how images are grouped and\n"
+                    "formatted in PowerPoint presentations.")
+        
+        ttk.Label(info_frame, text=info_text, foreground="gray", justify=tk.LEFT).pack(anchor='w')
+        
+        # Buttons
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(pady=10)
+        
+        def apply_changes():
+            new_type = type_var.get().strip()
+            
+            if not new_type:
+                messagebox.showwarning("No Type Selected", "Please select an image type.")
+                return
+            
+            if new_type not in ImageIdentifier.ALL_IDENTIFIERS:
+                messagebox.showerror("Invalid Type", "Selected type is not valid.")
+                return
+            
+            # Update each selected image
+            for img_id in selected_ids:
+                img = self.uploader.index.get_image(img_id)
+                if img:
+                    img['metadata']['identifier'] = new_type
+            
+            # Save changes
+            self.uploader.index.save_index()
+            
+            # Refresh display
+            self.refresh_image_list()
+            self.update_stats()
+            
+            messagebox.showinfo("Success", f"Updated image type for {len(selected_ids)} image(s) to '{new_type}'.")
+            edit_window.destroy()
+        
+        ttk.Button(button_frame, text="Apply", command=apply_changes).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Cancel", command=edit_window.destroy).pack(side=tk.LEFT, padx=5)
+        
+        # Focus on combobox
+        type_combo.focus()
+    
     def clear_preview(self):
         """Clear the preview panel"""
         self.preview_label.config(text="Double-click an image to preview", image="")
@@ -642,6 +806,13 @@ class ImageUploaderGUI:
     
     def on_selection_change(self, event):
         """Handle selection change (from arrow keys or any other navigation)"""
+        # Update selection status
+        selection = self.tree.selection()
+        if len(selection) > 1:
+            self.selection_status_label.config(text=f"{len(selection)} images selected")
+        else:
+            self.selection_status_label.config(text="")
+        
         # Only update preview if it's already visible
         if not self.preview_visible:
             return
@@ -723,26 +894,122 @@ class ImageUploaderGUI:
             self.preview_close_btn.pack_forget()
             self.preview_visible = False
     
+    def on_drag_start(self, event):
+        """Handle the start of a drag selection"""
+        # Get the item at the click position
+        item = self.tree.identify_row(event.y)
+        if item:
+            self.drag_start_item = item
+            self.drag_start_y = event.y
+            self.is_dragging = False  # Not dragging yet, just clicked
+            
+            # Check if Ctrl or Cmd is held for multi-select
+            if event.state & 0x4:  # Control key held - don't change selection yet
+                # Let on_drag_end handle the toggle logic
+                pass
+            else:  # Control key not held
+                # Clear current selection and select this item
+                self.tree.selection_set(item)
+        
+        # Call the original single-click handler only if Ctrl is not held
+        if not (event.state & 0x4):
+            self.on_single_click(event)
+    
+    def on_drag_motion(self, event):
+        """Handle drag motion to select multiple items"""
+        if self.drag_start_item and self.drag_start_y is not None:
+            # Start dragging if we've moved enough
+            if not self.is_dragging and abs(event.y - self.drag_start_y) > 5:
+                self.is_dragging = True
+            
+            if self.is_dragging:
+                # Get all items between start and current position
+                start_y = self.drag_start_y
+                end_y = event.y
+                
+                # Ensure start_y is always less than end_y
+                if start_y > end_y:
+                    start_y, end_y = end_y, start_y
+                
+                # Get all visible items in the tree
+                children = self.tree.get_children()
+                selected_items = []
+                
+                for child in children:
+                    # Get the bounding box of the item
+                    try:
+                        bbox = self.tree.bbox(child)
+                        if bbox:  # bbox returns None if item is not visible
+                            item_y = bbox[1] + bbox[3] / 2  # Middle of the item
+                            # Check if item is within selection range
+                            if start_y <= item_y <= end_y:
+                                selected_items.append(child)
+                    except:
+                        # If bbox fails, skip this item
+                        continue
+                
+                # Update selection
+                if selected_items:
+                    self.tree.selection_set(selected_items)
+    
+    def on_drag_end(self, event):
+        """Handle the end of drag selection"""
+        if self.is_dragging:
+            # Dragging completed, selection is already set in on_drag_motion
+            pass
+        else:
+            # Just a click, not a drag - handle normal click selection
+            item = self.tree.identify_row(event.y)
+            if item:
+                # Check if Ctrl/Cmd is held for adding to selection
+                if event.state & 0x4:  # Control key held
+                    # Toggle selection of this item
+                    current_selection = self.tree.selection()
+                    if item in current_selection:
+                        # Remove from selection
+                        remaining = [i for i in current_selection if i != item]
+                        self.tree.selection_set(remaining)
+                    else:
+                        # Add to selection
+                        self.tree.selection_add(item)
+                else:
+                    # Normal click - select just this item
+                    self.tree.selection_set(item)
+        
+        # Update selection status
+        selection = self.tree.selection()
+        if len(selection) > 1:
+            self.selection_status_label.config(text=f"{len(selection)} images selected")
+        else:
+            self.selection_status_label.config(text="")
+        
+        # Reset drag state
+        self.drag_start_item = None
+        self.drag_start_y = None
+        self.is_dragging = False
+    
     def show_details(self):
-        """Show detailed information about selected image"""
+        """Show detailed information about selected image(s)"""
         selection = self.tree.selection()
         if not selection:
-            messagebox.showwarning("No Selection", "Please select an image first.")
-            return
-        
-        # Get selected image ID (column index 1)
-        item = self.tree.item(selection[0])
-        image_id = int(item['values'][1])
-        
-        # Get image info
-        img_info = self.uploader.get_image_info(image_id)
-        if not img_info:
-            messagebox.showerror("Error", "Image information not found.")
+            messagebox.showwarning("No Selection", "Please select one or more images first.")
             return
         
         # Create details window
         details_window = tk.Toplevel(self.root)
-        details_window.title(f"Image Details - {img_info['filename']}")
+        if len(selection) == 1:
+            # Single selection - get specific info
+            item = self.tree.item(selection[0])
+            image_id = int(item['values'][1])
+            img_info = self.uploader.get_image_info(image_id)
+            if not img_info:
+                messagebox.showerror("Error", "Image information not found.")
+                return
+            details_window.title(f"Image Details - {img_info['filename']}")
+        else:
+            # Multiple selection
+            details_window.title(f"Details for {len(selection)} Selected Images")
+        
         details_window.geometry("600x500")
         details_window.transient(self.root)
         
@@ -754,18 +1021,76 @@ class ImageUploaderGUI:
                                                  font=('Courier', 10))
         details_text.pack(fill=tk.BOTH, expand=True)
         
-        # Format details
-        details_str = f"Image Details\n{'='*50}\n\n"
-        for key, value in img_info.items():
-            if key == 'metadata':
-                details_str += f"\nMetadata:\n"
-                if value:
-                    for mk, mv in value.items():
-                        details_str += f"  {mk.replace('_', ' ').title()}: {mv}\n"
+        # Format details for single or multiple images
+        if len(selection) == 1:
+            # Single image details (existing behavior)
+            item = self.tree.item(selection[0])
+            image_id = int(item['values'][1])
+            img_info = self.uploader.get_image_info(image_id)
+            
+            details_str = f"Image Details\n{'='*50}\n\n"
+            for key, value in img_info.items():
+                if key == 'metadata':
+                    details_str += f"\nMetadata:\n"
+                    if value:
+                        for mk, mv in value.items():
+                            details_str += f"  {mk.replace('_', ' ').title()}: {mv}\n"
+                    else:
+                        details_str += "  None\n"
                 else:
-                    details_str += "  None\n"
-            else:
-                details_str += f"{key.replace('_', ' ').title()}: {value}\n"
+                    details_str += f"{key.replace('_', ' ').title()}: {value}\n"
+        else:
+            # Multiple images summary
+            details_str = f"Summary of {len(selection)} Selected Images\n{'='*50}\n\n"
+            
+            # Collect statistics
+            total_size = 0
+            formats = {}
+            identifiers = {}
+            groups = {}
+            
+            for item in selection:
+                values = self.tree.item(item)['values']
+                image_id = int(values[1])
+                img_info = self.uploader.get_image_info(image_id)
+                
+                if img_info:
+                    # Size
+                    total_size += img_info['size_bytes']
+                    
+                    # Format
+                    fmt = img_info['format']
+                    formats[fmt] = formats.get(fmt, 0) + 1
+                    
+                    # Identifier
+                    identifier = img_info.get('metadata', {}).get('identifier', 'N/A')
+                    identifiers[identifier] = identifiers.get(identifier, 0) + 1
+                    
+                    # Group
+                    group = values[0]  # Group column
+                    groups[group] = groups.get(group, 0) + 1
+                    
+                    # Add individual file info
+                    details_str += f"• {img_info['filename']}\n"
+                    details_str += f"  Type: {identifier}, Group: {group}\n"
+                    details_str += f"  Size: {round(img_info['size_bytes']/1024, 2)} KB\n\n"
+            
+            # Add summary statistics
+            details_str += f"\nSummary Statistics:\n{'-'*30}\n"
+            details_str += f"Total Files: {len(selection)}\n"
+            details_str += f"Total Size: {round(total_size/1024/1024, 2)} MB\n\n"
+            
+            details_str += "Formats:\n"
+            for fmt, count in sorted(formats.items()):
+                details_str += f"  {fmt}: {count}\n"
+            
+            details_str += "\nImage Types:\n"
+            for identifier, count in sorted(identifiers.items()):
+                details_str += f"  {identifier}: {count}\n"
+            
+            details_str += "\nGroups:\n"
+            for group, count in sorted(groups.items()):
+                details_str += f"  {group}: {count}\n"
         
         details_text.insert(1.0, details_str)
         details_text.config(state='disabled')
@@ -775,30 +1100,48 @@ class ImageUploaderGUI:
                   command=details_window.destroy).pack(pady=10)
     
     def remove_selected(self):
-        """Remove selected image from index"""
+        """Remove selected image(s) from index"""
         selection = self.tree.selection()
         if not selection:
-            messagebox.showwarning("No Selection", "Please select an image to remove.")
+            messagebox.showwarning("No Selection", "Please select one or more images to remove.")
             return
         
-        # Get selected image ID (column index 1)
-        item = self.tree.item(selection[0])
-        image_id = int(item['values'][1])
-        filename = item['values'][3]  # Filename is now column index 3
+        # Get selected image IDs and filenames
+        selected_items = []
+        for item in selection:
+            values = self.tree.item(item)['values']
+            image_id = int(values[1])  # ID is column index 1
+            filename = values[3]  # Filename is column index 3
+            selected_items.append((image_id, filename))
         
         # Confirm deletion
-        result = messagebox.askyesno("Confirm Removal", 
-                                     f"Remove '{filename}' from index?\n\n"
-                                     "The file will not be deleted from disk.")
+        if len(selected_items) == 1:
+            result = messagebox.askyesno("Confirm Removal", 
+                                         f"Remove '{selected_items[0][1]}' from index?\n\n"
+                                         "The file will not be deleted from disk.")
+        else:
+            result = messagebox.askyesno("Confirm Removal", 
+                                         f"Remove {len(selected_items)} images from index?\n\n"
+                                         "The files will not be deleted from disk.")
         
         if result:
-            if self.uploader.remove_image(image_id):
-                messagebox.showinfo("Success", "Image removed from index.")
-                self.refresh_image_list()
-                self.update_stats()
-                self.preview_label.config(text="Select an image to preview", image="")
+            success_count = 0
+            for image_id, filename in selected_items:
+                if self.uploader.remove_image(image_id):
+                    success_count += 1
+            
+            if success_count == len(selected_items):
+                if len(selected_items) == 1:
+                    messagebox.showinfo("Success", "Image removed from index.")
+                else:
+                    messagebox.showinfo("Success", f"{success_count} images removed from index.")
             else:
-                messagebox.showerror("Error", "Failed to remove image.")
+                messagebox.showwarning("Partial Success", 
+                                     f"{success_count} of {len(selected_items)} images removed from index.")
+            
+            self.refresh_image_list()
+            self.update_stats()
+            self.clear_preview()
     
     def export_index(self):
         """Export index to a text file"""
