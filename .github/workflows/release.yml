@@ -1,0 +1,115 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  # ─── macOS build ──────────────────────────────────────────────────────────
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build .app with PyInstaller
+        run: pyinstaller --clean build_app.spec
+
+      - name: Create DMG
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          DMG="dist/PowerPointGenerator-${VERSION}-macOS.dmg"
+          hdiutil create \
+            -volname "PowerPoint Generator" \
+            -srcfolder "dist/PowerPointGenerator.app" \
+            -ov -format UDZO \
+            "$DMG"
+          echo "DMG_PATH=$DMG" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION"  >> "$GITHUB_ENV"
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: ${{ env.DMG_PATH }}
+
+  # ─── Windows build ────────────────────────────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build .exe with PyInstaller
+        run: pyinstaller --clean build_windows.spec
+
+      - name: Rename artifact
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mv dist/PowerPointGenerator.exe "dist/PowerPointGenerator-${VERSION}-Windows.exe"
+          echo "EXE_NAME=PowerPointGenerator-${VERSION}-Windows.exe" >> "$GITHUB_ENV"
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: dist/${{ env.EXE_NAME }}
+
+  # ─── Create GitHub Release ────────────────────────────────────────────────
+  release:
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-dmg
+          path: artifacts/
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-exe
+          path: artifacts/
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "PowerPoint Generator ${{ github.ref_name }}"
+          body: |
+            ## PowerPoint Generator ${{ github.ref_name }}
+
+            ### Downloads
+            | Platform | File |
+            |----------|------|
+            | macOS    | `.dmg` — open and drag app to Applications |
+            | Windows  | `.exe` — run directly, no installation needed |
+
+            ### Update notes
+            The app will notify you automatically when a newer version is available.
+          files: artifacts/*
+          draft: false
+          prerelease: false
