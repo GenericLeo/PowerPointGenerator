@@ -7,11 +7,28 @@ Includes intelligent sorting and grouping based on filename identifiers
 import os
 import json
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from PIL import Image
 import hashlib
+
+
+def get_app_data_dir(app_name: str = "PowerPointGenerator") -> str:
+    """Return a writable per-user app data directory."""
+    home = Path.home()
+
+    if sys.platform == "darwin":
+        base = home / "Library" / "Application Support"
+    elif os.name == "nt":
+        base = Path(os.getenv("APPDATA", str(home)))
+    else:
+        base = home / ".local" / "share"
+
+    app_dir = base / app_name
+    app_dir.mkdir(parents=True, exist_ok=True)
+    return str(app_dir)
 
 
 class ImageIdentifier:
@@ -233,6 +250,9 @@ class ImageIndex:
     
     def save_index(self):
         """Save index to file"""
+        index_parent = os.path.dirname(self.index_file)
+        if index_parent:
+            os.makedirs(index_parent, exist_ok=True)
         with open(self.index_file, 'w') as f:
             json.dump(self.images, f, indent=2)
     
@@ -396,9 +416,10 @@ class ImageUploader:
     
     SUPPORTED_FORMATS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.tif', '.webp'}
     
-    def __init__(self, upload_dir: str = "uploaded_images"):
-        self.upload_dir = upload_dir
-        self.index = ImageIndex()
+    def __init__(self, upload_dir: Optional[str] = None, index_file: Optional[str] = None):
+        app_data_dir = get_app_data_dir()
+        self.upload_dir = upload_dir or os.path.join(app_data_dir, "uploaded_images")
+        self.index = ImageIndex(index_file or os.path.join(app_data_dir, "image_index.json"))
         self._ensure_upload_dir()
     
     def _ensure_upload_dir(self):
