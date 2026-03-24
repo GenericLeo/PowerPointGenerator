@@ -1,6 +1,16 @@
 # PowerPoint Generator - Image Uploader
 
-A Python application for uploading and indexing images (including TIFF files) for PowerPoint generation.
+A professional Python application for uploading and indexing images (including TIFF files) for PowerPoint generation.
+
+## 🚀 macOS Distribution Ready!
+
+**NEW:** This application now supports:
+- ✨ **One-click executable** for easy macOS distribution
+- 🔄 **Automatic updates** from GitHub releases
+- 📦 **DMG packaging** for professional distribution
+- 👥 **Team sharing** - package and share with coworkers
+
+👉 See [QUICKSTART_MACOS.md](QUICKSTART_MACOS.md) or [MACOS_DISTRIBUTION.md](MACOS_DISTRIBUTION.md) for details.
 
 ## Features
 
@@ -15,6 +25,7 @@ A Python application for uploading and indexing images (including TIFF files) fo
 - ✅ Statistics and reporting
 - ✅ JSON-based index storage
 - ✅ Modern GUI interface with preview
+- ✅ **Auto-update from GitHub** (Help → Check for Updates)
 
 ## Installation
 

@@ -8,8 +8,11 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 from PIL import Image, ImageTk
 import os
+import threading
 from datetime import datetime
 from image_uploader import ImageUploader, ImageIdentifier
+from update_manager import UpdateManager
+from version import __version__, __app_name__
 
 
 class ImageUploaderGUI:
@@ -17,11 +20,14 @@ class ImageUploaderGUI:
     
     def __init__(self, root):
         self.root = root
-        self.root.title("PowerPoint Image Uploader")
+        self.root.title(f"{__app_name__} v{__version__}")
         self.root.geometry("1200x900")
         
         # Initialize uploader
         self.uploader = ImageUploader()
+        
+        # Initialize update manager
+        self.update_manager = UpdateManager()
         
         # Store thumbnail images to prevent garbage collection
         self.thumbnail_images = {}
@@ -36,10 +42,26 @@ class ImageUploaderGUI:
         self.style = ttk.Style()
         self.style.theme_use('aqua' if os.name == 'posix' else 'clam')
         
+        # Setup menu bar
+        self.setup_menu()
+        
         # Setup GUI
         self.setup_ui()
         self.refresh_image_list()
         self.update_stats()
+    
+    def setup_menu(self):
+        """Setup the menu bar"""
+        menubar = tk.Menu(self.root)
+        self.root.config(menu=menubar)
+        
+        # Help menu
+        help_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Help", menu=help_menu)
+        
+        help_menu.add_command(label="Check for Updates...", command=self.check_for_updates)
+        help_menu.add_separator()
+        help_menu.add_command(label=f"About {__app_name__}", command=self.show_about)
     
     def setup_ui(self):
         """Setup the user interface"""
@@ -2055,6 +2077,160 @@ class ImageUploaderGUI:
         ttk.Button(action_frame, text="Preview", command=preview_slides, width=15).pack(side=tk.LEFT, padx=5)
         ttk.Button(action_frame, text="Generate", command=generate, width=15).pack(side=tk.LEFT, padx=5)
         ttk.Button(action_frame, text="Cancel", command=selection_window.destroy, width=15).pack(side=tk.LEFT, padx=5)
+    
+    def check_for_updates(self, silent=False):
+        """Check for application updates from GitHub"""
+        def do_check():
+            result = self.update_manager.check_for_updates()
+            
+            # Schedule UI update on main thread
+            self.root.after(0, lambda: self._handle_update_result(result, silent))
+        
+        if not silent:
+            # Show checking message
+            self.checking_dialog = tk.Toplevel(self.root)
+            self.checking_dialog.title("Checking for Updates")
+            self.checking_dialog.geometry("300x100")
+            self.checking_dialog.transient(self.root)
+            self.checking_dialog.grab_set()
+            
+            # Center the dialog
+            self.checking_dialog.update_idletasks()
+            x = (self.checking_dialog.winfo_screenwidth() // 2) - (self.checking_dialog.winfo_width() // 2)
+            y = (self.checking_dialog.winfo_screenheight() // 2) - (self.checking_dialog.winfo_height() // 2)
+            self.checking_dialog.geometry(f"+{x}+{y}")
+            
+            ttk.Label(self.checking_dialog, text="Checking for updates...", 
+                     font=('Helvetica', 12)).pack(pady=30)
+        
+        # Run check in background thread
+        thread = threading.Thread(target=do_check, daemon=True)
+        thread.start()
+    
+    def _handle_update_result(self, result, silent):
+        """Handle the result of an update check"""
+        # Close checking dialog if it exists
+        if hasattr(self, 'checking_dialog'):
+            self.checking_dialog.destroy()
+            delattr(self, 'checking_dialog')
+        
+        if result.get('error'):
+            if not silent:
+                messagebox.showerror("Update Check Failed", 
+                                   f"Could not check for updates:\n\n{result['error']}")
+        elif result.get('update_available'):
+            # Show update available dialog
+            self._show_update_dialog(result)
+        else:
+            if not silent:
+                messagebox.showinfo("No Updates Available", 
+                                  f"You are running the latest version ({result.get('current_version', __version__)})")
+    
+    def _show_update_dialog(self, update_info):
+        """Show dialog with update information"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Update Available")
+        dialog.geometry("500x400")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Center the dialog
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (dialog.winfo_width() // 2)
+        y = (dialog.winfo_screenheight() // 2) - (dialog.winfo_height() // 2)
+        dialog.geometry(f"+{x}+{y}")
+        
+        main_frame = ttk.Frame(dialog, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Title
+        ttk.Label(main_frame, text="🎉 Update Available!", 
+                 font=('Helvetica', 16, 'bold')).pack(pady=(0, 10))
+        
+        # Version info
+        info_frame = ttk.Frame(main_frame)
+        info_frame.pack(fill=tk.X, pady=10)
+        
+        ttk.Label(info_frame, text=f"Current Version: {update_info['current_version']}", 
+                 font=('Helvetica', 11)).pack(anchor=tk.W)
+        ttk.Label(info_frame, text=f"Latest Version: {update_info['latest_version']}", 
+                 font=('Helvetica', 11, 'bold')).pack(anchor=tk.W)
+        
+        # Release notes
+        ttk.Label(main_frame, text="What's New:", 
+                 font=('Helvetica', 12, 'bold')).pack(anchor=tk.W, pady=(10, 5))
+        
+        notes_text = scrolledtext.ScrolledText(main_frame, wrap=tk.WORD, height=10, width=50)
+        notes_text.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
+        notes_text.insert('1.0', update_info.get('release_notes', 'No release notes available.'))
+        notes_text.config(state='disabled')
+        
+        # Buttons
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X)
+        
+        def download_update():
+            if update_info.get('download_url'):
+                self.update_manager.download_and_install_update(update_info['download_url'])
+                messagebox.showinfo("Download Started", 
+                                  "The download has started in your browser.\n\n"
+                                  "Please install the update when the download completes.")
+            else:
+                self.update_manager.open_download_page(update_info.get('html_url'))
+            dialog.destroy()
+        
+        ttk.Button(button_frame, text="Download Update", 
+                  command=download_update).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Later", 
+                  command=dialog.destroy).pack(side=tk.LEFT, padx=5)
+    
+    def show_about(self):
+        """Show about dialog"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"About {__app_name__}")
+        dialog.geometry("400x300")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Center the dialog
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (dialog.winfo_width() // 2)
+        y = (dialog.winfo_screenheight() // 2) - (dialog.winfo_height() // 2)
+        dialog.geometry(f"+{x}+{y}")
+        
+        main_frame = ttk.Frame(dialog, padding="30")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # App name and version
+        ttk.Label(main_frame, text=__app_name__, 
+                 font=('Helvetica', 18, 'bold')).pack(pady=(0, 5))
+        ttk.Label(main_frame, text=f"Version {__version__}", 
+                 font=('Helvetica', 12)).pack(pady=(0, 20))
+        
+        # Description
+        desc = ("A powerful tool for organizing and managing images\n"
+                "for PowerPoint presentations.\n\n"
+                "Features intelligent sorting, grouping, and layout\n"
+                "customization for professional presentation creation.")
+        ttk.Label(main_frame, text=desc, 
+                 font=('Helvetica', 10), justify=tk.CENTER).pack(pady=(0, 20))
+        
+        # Links frame
+        links_frame = ttk.Frame(main_frame)
+        links_frame.pack(pady=10)
+        
+        def open_github():
+            import webbrowser
+            webbrowser.open(f"https://github.com/{self.update_manager.github_repo}")
+        
+        ttk.Button(links_frame, text="Visit GitHub Repository", 
+                  command=open_github).pack(pady=5)
+        ttk.Button(links_frame, text="Check for Updates", 
+                  command=lambda: [dialog.destroy(), self.check_for_updates()]).pack(pady=5)
+        
+        # Close button
+        ttk.Button(main_frame, text="Close", 
+                  command=dialog.destroy).pack(pady=(20, 0))
 
 
 def main():

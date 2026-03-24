@@ -20,9 +20,11 @@ Icon
 ._*
 
 # PyInstaller
-*.spec
 build/
 dist/
+# Allow build specs to be tracked
+!build_app.spec
+!build_windows.spec
 
 # Project specific
 uploaded_images/
