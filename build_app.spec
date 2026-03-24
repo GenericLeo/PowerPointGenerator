@@ -1,5 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from version import __version__, __bundle_id__, __app_name__
+
 block_cipher = None
 
 a = Analysis(
@@ -65,11 +67,11 @@ app = BUNDLE(
     exe,
     name='PowerPointGenerator.app',
     icon=None,
-    bundle_identifier='com.powerpoint.generator',
+    bundle_identifier=__bundle_id__,
     info_plist={
-        'CFBundleDisplayName': 'PowerPoint Generator',
-        'CFBundleShortVersionString': '1.0.0',
-        'CFBundleVersion': '1.0.0',
+        'CFBundleDisplayName': __app_name__,
+        'CFBundleShortVersionString': __version__,
+        'CFBundleVersion': __version__,
         'NSHighResolutionCapable': 'True',
         'LSBackgroundOnly': 'False',
         'CFBundleDocumentTypes': [
