@@ -49,6 +49,10 @@ class ImageUploaderGUI:
         self.setup_ui()
         self.refresh_image_list()
         self.update_stats()
+
+        # Check for updates in the background after startup.
+        # Silent mode only shows UI if an update is available.
+        self.root.after(5000, lambda: self.check_for_updates(silent=True))
     
     def setup_menu(self):
         """Setup the menu bar"""
