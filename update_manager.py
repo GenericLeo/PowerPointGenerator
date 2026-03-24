@@ -6,12 +6,19 @@ Checks GitHub releases for updates and provides download/update functionality
 import json
 import urllib.request
 import urllib.error
+import ssl
 import webbrowser
 import os
 import sys
 import subprocess
+import re
 from packaging import version as version_parser
 from version import __version__, __github_repo__
+
+try:
+    import certifi
+except ImportError:
+    certifi = None
 
 
 class UpdateManager:
@@ -50,16 +57,19 @@ class UpdateManager:
                 headers={'Accept': 'application/vnd.github.v3+json'}
             )
             
-            with urllib.request.urlopen(req, timeout=timeout) as response:
+            ssl_context = self._get_ssl_context()
+
+            with urllib.request.urlopen(req, timeout=timeout, context=ssl_context) as response:
                 data = json.loads(response.read().decode())
             
-            # Extract version information
-            latest_version = data.get('tag_name', '').lstrip('v')
             release_notes = data.get('body', 'No release notes available.')
             
             # Find the macOS .dmg or .zip asset
             download_url = None
             assets = data.get('assets', [])
+
+            # Resolve the release version from tag/name/assets in a robust way
+            latest_version = self._resolve_release_version(data, assets)
             
             for asset in assets:
                 asset_name = asset.get('name', '').lower()
@@ -173,6 +183,48 @@ class UpdateManager:
     def get_current_version(self):
         """Get the current application version"""
         return self.current_version
+
+    def _get_ssl_context(self):
+        """Return an SSL context that works reliably on packaged macOS builds."""
+        if certifi is not None:
+            return ssl.create_default_context(cafile=certifi.where())
+        return ssl.create_default_context()
+
+    def _resolve_release_version(self, release_data, assets):
+        """Resolve semantic version from GitHub release data.
+
+        Preference order:
+        1) tag_name if semver-like (e.g. v1.2.3)
+        2) release name if it contains semver
+        3) asset filename containing semver (e.g. App-1.2.3-macOS.dmg)
+        """
+        tag_name = (release_data.get('tag_name') or '').strip()
+        release_name = (release_data.get('name') or '').strip()
+
+        tag_candidate = self._extract_semver(tag_name)
+        if tag_candidate:
+            return tag_candidate
+
+        name_candidate = self._extract_semver(release_name)
+        if name_candidate:
+            return name_candidate
+
+        for asset in assets:
+            asset_name = (asset.get('name') or '').strip()
+            asset_candidate = self._extract_semver(asset_name)
+            if asset_candidate:
+                return asset_candidate
+
+        # Last resort: strip leading v if present and return raw tag
+        return tag_name.lstrip('v')
+
+    @staticmethod
+    def _extract_semver(text):
+        """Extract X.Y.Z from text; returns None if absent."""
+        if not text:
+            return None
+        match = re.search(r'(\d+\.\d+\.\d+)', text)
+        return match.group(1) if match else None
     
     @staticmethod
     def is_running_from_bundle():
