@@ -64,27 +64,40 @@ class UpdateManager:
             
             release_notes = data.get('body', 'No release notes available.')
             
-            # Find the macOS .dmg or .zip asset
             download_url = None
             assets = data.get('assets', [])
 
             # Resolve the release version from tag/name/assets in a robust way
             latest_version = self._resolve_release_version(data, assets)
-            
-            for asset in assets:
-                asset_name = asset.get('name', '').lower()
-                if asset_name.endswith('.dmg') or asset_name.endswith('.zip'):
-                    if 'macos' in asset_name or 'mac' in asset_name or asset_name.endswith('.dmg'):
-                        download_url = asset.get('browser_download_url')
-                        break
-            
-            # If no Mac-specific asset found, use first .dmg or .zip
-            if not download_url:
+
+            # Pick the asset that matches the current platform
+            if sys.platform == 'win32':
+                # Windows: prefer .exe with 'windows' in the name
                 for asset in assets:
                     asset_name = asset.get('name', '').lower()
-                    if asset_name.endswith('.dmg') or asset_name.endswith('.zip'):
+                    if asset_name.endswith('.exe') and 'windows' in asset_name:
                         download_url = asset.get('browser_download_url')
                         break
+                # Fallback: any .exe
+                if not download_url:
+                    for asset in assets:
+                        if asset.get('name', '').lower().endswith('.exe'):
+                            download_url = asset.get('browser_download_url')
+                            break
+            else:
+                # macOS / other: prefer .dmg with 'macos' or 'mac' in the name
+                for asset in assets:
+                    asset_name = asset.get('name', '').lower()
+                    if asset_name.endswith('.dmg') and ('macos' in asset_name or 'mac' in asset_name):
+                        download_url = asset.get('browser_download_url')
+                        break
+                # Fallback: any .dmg or .zip
+                if not download_url:
+                    for asset in assets:
+                        asset_name = asset.get('name', '').lower()
+                        if asset_name.endswith('.dmg') or asset_name.endswith('.zip'):
+                            download_url = asset.get('browser_download_url')
+                            break
             
             # Compare versions
             update_available = False
