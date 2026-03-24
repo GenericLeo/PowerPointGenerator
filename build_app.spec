@@ -1,6 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-from version import __version__, __bundle_id__, __app_name__
+from pathlib import Path
+
+_version_ns = {}
+_version_file = Path.cwd() / 'version.py'
+exec(_version_file.read_text(encoding='utf-8'), _version_ns)
+
+__version__ = _version_ns.get('__version__', '1.0.0')
+__bundle_id__ = _version_ns.get('__bundle_id__', 'com.powerpoint.generator')
+__app_name__ = _version_ns.get('__app_name__', 'PowerPoint Generator')
 
 block_cipher = None
 
