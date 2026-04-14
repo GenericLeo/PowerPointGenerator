@@ -337,7 +337,7 @@ class ImageUploaderGUI:
         help_frame.columnconfigure(0, weight=1)
         
         help_label = ttk.Label(help_frame,
-                              text="💡 Click & drag to select multiple images, Ctrl+Click to add/remove, Shift+Up/Down to extend",
+                              text="💡 Ctrl+Click adds, second Ctrl+Click on same file removes, Ctrl+Drag adds a range, Shift+Up/Down extends",
                               style='Muted.TLabel')
         help_label.grid(row=0, column=0, sticky=tk.W)
         
@@ -402,7 +402,10 @@ class ImageUploaderGUI:
         self.drag_start_y = None
         self.drag_start_item = None
         self.is_dragging = False
+        self.drag_ctrl_mode = False
+        self.drag_base_selection = ()
         self.selection_anchor_item = None
+        self.pending_ctrl_remove_item = None
         
         # Bind drag selection events
         self.tree.bind("<ButtonPress-1>", self.on_drag_start)
@@ -1079,6 +1082,11 @@ class ImageUploaderGUI:
             self.preview_close_btn.pack_forget()
             self.preview_visible = False
     
+    def _is_multi_select_modifier(self, event):
+        """Return True when Ctrl/Cmd-style additive selection modifier is held."""
+        # Control is 0x4 on Tk; macOS Command can appear under Mod1/Mod2 in some builds.
+        return bool(event.state & (0x4 | 0x8 | 0x10))
+
     def on_drag_start(self, event):
         """Handle the start of a drag selection"""
         # Get the item at the click position
@@ -1087,19 +1095,21 @@ class ImageUploaderGUI:
             self.drag_start_item = item
             self.drag_start_y = event.y
             self.is_dragging = False  # Not dragging yet, just clicked
-            
-            # Check if Ctrl or Cmd is held for multi-select
-            if event.state & 0x4:  # Control key held - don't change selection yet
-                # Let on_drag_end handle the toggle logic
-                pass
-            else:  # Control key not held
+            self.drag_ctrl_mode = self._is_multi_select_modifier(event)
+            self.drag_base_selection = self.tree.selection()
+
+            # Without Ctrl/Cmd, start a fresh selection from the clicked row.
+            if not self.drag_ctrl_mode:
                 # Clear current selection and select this item
                 self.tree.selection_set(item)
                 self.selection_anchor_item = item
-        
-        # Call the original single-click handler only if Ctrl is not held
-        if not (event.state & 0x4):
+                self.pending_ctrl_remove_item = None
+
+        # Call the original single-click handler only if modifier is not held
+        if not self.drag_ctrl_mode:
             self.on_single_click(event)
+
+        return "break"
     
     def on_drag_motion(self, event):
         """Handle drag motion to select multiple items"""
@@ -1136,44 +1146,58 @@ class ImageUploaderGUI:
                 
                 # Update selection
                 if selected_items:
-                    self.tree.selection_set(selected_items)
+                    if self.drag_ctrl_mode:
+                        merged = list(dict.fromkeys(list(self.drag_base_selection) + selected_items))
+                        self.tree.selection_set(merged)
+                    else:
+                        self.tree.selection_set(selected_items)
     
     def on_drag_end(self, event):
         """Handle the end of drag selection"""
         if self.is_dragging:
             # Dragging completed, selection is already set in on_drag_motion
-            pass
+            self.pending_ctrl_remove_item = None
         else:
             # Just a click, not a drag - handle normal click selection
             item = self.tree.identify_row(event.y)
             if item:
-                # Check if Ctrl/Cmd is held for adding to selection
-                if event.state & 0x4:  # Control key held
-                    # Toggle selection of this item
+                # Check if Ctrl/Cmd is held for additive/two-step toggle selection
+                if self.drag_ctrl_mode:
                     current_selection = self.tree.selection()
                     if item in current_selection:
-                        # Remove from selection
-                        remaining = [i for i in current_selection if i != item]
-                        self.tree.selection_set(remaining)
+                        # Second distinct Ctrl-click on the same selected item removes it.
+                        if self.pending_ctrl_remove_item == item:
+                            remaining = [i for i in current_selection if i != item]
+                            self.tree.selection_set(remaining)
+                            self.pending_ctrl_remove_item = None
+                        else:
+                            # First Ctrl-click on a selected item marks it for optional removal.
+                            self.pending_ctrl_remove_item = item
                     else:
-                        # Add to selection
                         self.tree.selection_add(item)
+                        self.selection_anchor_item = item
+                        self.pending_ctrl_remove_item = None
                 else:
                     # Normal click - select just this item
                     self.tree.selection_set(item)
                     self.selection_anchor_item = item
-        
+                    self.pending_ctrl_remove_item = None
+
         # Update selection status
         selection = self.tree.selection()
         if len(selection) > 1:
             self.selection_status_label.config(text=f"{len(selection)} images selected")
         else:
             self.selection_status_label.config(text="")
-        
+
         # Reset drag state
         self.drag_start_item = None
         self.drag_start_y = None
         self.is_dragging = False
+        self.drag_ctrl_mode = False
+        self.drag_base_selection = ()
+
+        return "break"
     
     def show_details(self):
         """Show detailed information about selected image(s)"""
