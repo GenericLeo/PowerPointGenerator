@@ -413,8 +413,8 @@ class ImageUploaderGUI:
         self.tree.bind("<ButtonRelease-1>", self.on_drag_end)
 
         # Keyboard range selection: hold Shift + Up/Down to extend selection.
-        self.tree.bind("<Shift-Up>", lambda e: self.extend_selection_with_keyboard(-1))
-        self.tree.bind("<Shift-Down>", lambda e: self.extend_selection_with_keyboard(1))
+        self.tree.bind("<Shift-Up>", self._on_shift_up)
+        self.tree.bind("<Shift-Down>", self._on_shift_down)
         
         # Preview panel with close button
         preview_frame = ttk.LabelFrame(right_panel, text="Preview", padding="10")
@@ -1087,6 +1087,16 @@ class ImageUploaderGUI:
         # Control is 0x4 on Tk; macOS Command can appear under Mod1/Mod2 in some builds.
         return bool(event.state & (0x4 | 0x8 | 0x10))
 
+    def _on_shift_up(self, event):
+        """Handle Shift+Up keyboard event."""
+        self.extend_selection_with_keyboard(-1)
+        return "break"
+
+    def _on_shift_down(self, event):
+        """Handle Shift+Down keyboard event."""
+        self.extend_selection_with_keyboard(1)
+        return "break"
+
     def on_drag_start(self, event):
         """Handle the start of a drag selection"""
         # Get the item at the click position
@@ -1108,8 +1118,6 @@ class ImageUploaderGUI:
         # Call the original single-click handler only if modifier is not held
         if not self.drag_ctrl_mode:
             self.on_single_click(event)
-
-        return "break"
     
     def on_drag_motion(self, event):
         """Handle drag motion to select multiple items"""
@@ -1196,8 +1204,6 @@ class ImageUploaderGUI:
         self.is_dragging = False
         self.drag_ctrl_mode = False
         self.drag_base_selection = ()
-
-        return "break"
     
     def show_details(self):
         """Show detailed information about selected image(s)"""
