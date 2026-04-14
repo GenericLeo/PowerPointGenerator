@@ -38,9 +38,9 @@ class ImageUploaderGUI:
         # Store custom layout profiles
         self.layout_profiles = {}  # {group_label: layout_config}
         
-        # Configure style
+        # Configure NCSU colour theme
         self.style = ttk.Style()
-        self.style.theme_use('aqua' if os.name == 'posix' else 'clam')
+        self._apply_ncsu_theme()
         
         # Setup menu bar
         self.setup_menu()
@@ -50,10 +50,124 @@ class ImageUploaderGUI:
         self.refresh_image_list()
         self.update_stats()
 
+        # Style tk-native widgets that can't be themed via ttk.Style
+        self.stats_text.configure(
+            bg=self.clr['white'], fg=self.clr['black'],
+            insertbackground=self.clr['red'],
+            selectbackground=self.clr['red'], selectforeground=self.clr['white']
+        )
+
         # Check for updates in the background after startup.
         # Silent mode only shows UI if an update is available.
         self.root.after(5000, lambda: self.check_for_updates(silent=True))
     
+    # ────────────────────────────────────────────────────────────────────
+    # NCSU Theme
+    # ────────────────────────────────────────────────────────────────────
+
+    def _apply_ncsu_theme(self):
+        """Apply NC State University red/white/black colour scheme."""
+        # ── NCSU palette ──────────────────────────────────────────────────
+        RED        = '#CC0000'   # Reynolds Red – primary brand
+        RED_DARK   = '#8B0000'   # Bold headers / hover state
+        RED_LIGHT  = '#FFF0F0'   # Tint for sub-windows
+        WHITE      = '#FFFFFF'
+        BLACK      = '#1A1A1A'   # Near-black for primary text
+        GRAY_MID   = '#555555'   # Muted / secondary text
+        BORDER     = '#CCCCCC'
+
+        # Store colours for use elsewhere (e.g. tk-native widgets)
+        self.clr = dict(
+            red=RED, red_dark=RED_DARK, red_light=RED_LIGHT,
+            white=WHITE, black=BLACK, gray_mid=GRAY_MID, border=BORDER
+        )
+
+        s = self.style
+        s.theme_use('clam')   # fully customisable on both macOS & Windows
+        self.root.configure(bg=WHITE)
+
+        # ── Frames ────────────────────────────────────────────────────────
+        s.configure('TFrame',         background=WHITE)
+        s.configure('TPanedwindow',   background=WHITE)
+
+        # ── Labels ────────────────────────────────────────────────────────
+        s.configure('TLabel',         background=WHITE, foreground=BLACK)
+        s.configure('Title.TLabel',   background=WHITE, foreground=RED_DARK,
+                    font=('Helvetica', 20, 'bold'))
+        s.configure('Header.TLabel',  background=WHITE, foreground=RED_DARK,
+                    font=('Helvetica', 14, 'bold'))
+        s.configure('Muted.TLabel',   background=WHITE, foreground=GRAY_MID,
+                    font=('Helvetica', 9))
+        s.configure('Status.TLabel',  background=WHITE, foreground=RED,
+                    font=('Helvetica', 9))
+
+        # ── Buttons ───────────────────────────────────────────────────────
+        s.configure('TButton',
+                    background=RED, foreground=WHITE,
+                    bordercolor=RED_DARK, focuscolor=RED_DARK,
+                    relief='flat', padding=(8, 4),
+                    font=('Helvetica', 10))
+        s.map('TButton',
+              background=[('active', RED_DARK), ('pressed', RED_DARK), ('disabled', BORDER)],
+              foreground=[('active', WHITE),    ('pressed', WHITE),    ('disabled', GRAY_MID)],
+              relief=[('pressed', 'flat')])
+
+        # ── LabelFrames ───────────────────────────────────────────────────
+        s.configure('TLabelframe',       background=WHITE, bordercolor=RED, relief='groove')
+        s.configure('TLabelframe.Label', background=WHITE, foreground=RED,
+                    font=('Helvetica', 10, 'bold'))
+
+        # ── Entries ───────────────────────────────────────────────────────
+        s.configure('TEntry',
+                    fieldbackground=WHITE, foreground=BLACK,
+                    bordercolor=BORDER, insertcolor=BLACK)
+        s.map('TEntry', bordercolor=[('focus', RED)])
+
+        # ── Comboboxes ────────────────────────────────────────────────────
+        s.configure('TCombobox',
+                    fieldbackground=WHITE, foreground=BLACK,
+                    selectbackground=RED, selectforeground=WHITE,
+                    arrowcolor=RED)
+        s.map('TCombobox',
+              fieldbackground=[('readonly', WHITE)],
+              foreground=[('readonly', BLACK)],
+              bordercolor=[('focus', RED)])
+
+        # ── Checkbuttons / Radiobuttons ───────────────────────────────────
+        s.configure('TCheckbutton', background=WHITE, foreground=BLACK)
+        s.configure('TRadiobutton', background=WHITE, foreground=BLACK)
+        s.map('TCheckbutton', background=[('active', WHITE)])
+        s.map('TRadiobutton',  background=[('active', WHITE)])
+
+        # ── Scrollbars ────────────────────────────────────────────────────
+        s.configure('TScrollbar',
+                    background=RED, troughcolor='#F5F5F5',
+                    bordercolor=BORDER, arrowcolor=WHITE, relief='flat')
+        s.map('TScrollbar', background=[('active', RED_DARK)])
+
+        # ── Progressbar ───────────────────────────────────────────────────
+        s.configure('TProgressbar',
+                    background=RED, troughcolor=RED_LIGHT, bordercolor=BORDER)
+
+        # ── Treeview ──────────────────────────────────────────────────────
+        s.configure('Treeview',
+                    background=WHITE, fieldbackground=WHITE,
+                    foreground=BLACK, rowheight=24, bordercolor=BORDER)
+        s.configure('Treeview.Heading',
+                    background=RED_DARK, foreground=WHITE,
+                    font=('Helvetica', 10, 'bold'), relief='flat')
+        s.map('Treeview',
+              background=[('selected', RED)],
+              foreground=[('selected', WHITE)])
+        s.map('Treeview.Heading',
+              background=[('active', RED)])
+
+    def _style_subwindow(self, win):
+        """Tint a Toplevel sub-window with the light-red NCSU background."""
+        win.configure(bg=self.clr['red_light'])
+
+    # ────────────────────────────────────────────────────────────────────
+
     def setup_menu(self):
         """Setup the menu bar"""
         menubar = tk.Menu(self.root)
@@ -79,8 +193,8 @@ class ImageUploaderGUI:
         main_container.rowconfigure(2, weight=1)  # Updated to row 2 for the main content area
         
         # Title
-        title_label = ttk.Label(main_container, text="PowerPoint Image Uploader", 
-                               font=('Helvetica', 20, 'bold'))
+        title_label = ttk.Label(main_container, text="PowerPoint Image Uploader",
+                               style='Title.TLabel')
         title_label.grid(row=0, column=0, columnspan=2, pady=(0, 10))
         
         # Actions Banner (horizontal toolbar across the top)
@@ -213,8 +327,8 @@ class ImageUploaderGUI:
         right_panel.rowconfigure(1, weight=1)
         
         # Image list label with selection instructions
-        list_label = ttk.Label(right_panel, text="Uploaded Images", 
-                              font=('Helvetica', 14, 'bold'))
+        list_label = ttk.Label(right_panel, text="Uploaded Images",
+                              style='Header.TLabel')
         list_label.grid(row=0, column=0, sticky=tk.W, pady=(0, 2))
         
         # Selection help text and status
@@ -222,14 +336,14 @@ class ImageUploaderGUI:
         help_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(18, 3))
         help_frame.columnconfigure(0, weight=1)
         
-        help_label = ttk.Label(help_frame, 
-                              text="💡 Click & drag to select multiple images, Ctrl+Click to add/remove", 
-                              font=('Helvetica', 9), foreground="gray")
+        help_label = ttk.Label(help_frame,
+                              text="💡 Click & drag to select multiple images, Ctrl+Click to add/remove",
+                              style='Muted.TLabel')
         help_label.grid(row=0, column=0, sticky=tk.W)
         
         # Selection status label
-        self.selection_status_label = ttk.Label(help_frame, text="", 
-                                               font=('Helvetica', 9), foreground="blue")
+        self.selection_status_label = ttk.Label(help_frame, text="",
+                                               style='Status.TLabel')
         self.selection_status_label.grid(row=0, column=1, sticky=tk.E)
         
         # Treeview for images
@@ -358,6 +472,7 @@ class ImageUploaderGUI:
         
         # Create progress window
         progress_window = tk.Toplevel(self.root)
+        self._style_subwindow(progress_window)
         progress_window.title("Uploading Images")
         progress_window.geometry("400x150")
         progress_window.transient(self.root)
@@ -604,6 +719,7 @@ class ImageUploaderGUI:
         
         # Create edit dialog
         edit_window = tk.Toplevel(self.root)
+        self._style_subwindow(edit_window)
         edit_window.title("Edit Group Assignment")
         edit_window.geometry("550x350")
         edit_window.transient(self.root)
@@ -634,7 +750,7 @@ class ImageUploaderGUI:
         group_entry = ttk.Entry(entry_frame, textvariable=group_var, width=30)
         group_entry.pack(side=tk.LEFT, padx=(0, 10))
         
-        ttk.Label(entry_frame, text="(or leave blank to remove group)", foreground="gray").pack(side=tk.LEFT)
+        ttk.Label(entry_frame, text="(or leave blank to remove group)", foreground="#555555").pack(side=tk.LEFT)
         
         # Info text
         info_frame = ttk.Frame(main_frame)
@@ -655,7 +771,7 @@ class ImageUploaderGUI:
                     f"Note: Numeric values will be auto-formatted based on identifier type.\n"
                     f"Custom labels allow you to create unique grouping schemes.")
         
-        ttk.Label(info_frame, text=info_text, foreground="gray", justify=tk.LEFT).pack(anchor='w')
+        ttk.Label(info_frame, text=info_text, foreground="#555555", justify=tk.LEFT).pack(anchor='w')
         
         # Buttons
         button_frame = ttk.Frame(main_frame)
@@ -724,6 +840,7 @@ class ImageUploaderGUI:
         
         # Create edit dialog
         edit_window = tk.Toplevel(self.root)
+        self._style_subwindow(edit_window)
         edit_window.title("Edit Image Type")
         edit_window.geometry("500x400")
         edit_window.transient(self.root)
@@ -776,7 +893,7 @@ class ImageUploaderGUI:
                     "The image type affects how images are grouped and\n"
                     "formatted in PowerPoint presentations.")
         
-        ttk.Label(info_frame, text=info_text, foreground="gray", justify=tk.LEFT).pack(anchor='w')
+        ttk.Label(info_frame, text=info_text, foreground="#555555", justify=tk.LEFT).pack(anchor='w')
         
         # Buttons
         button_frame = ttk.Frame(main_frame)
@@ -1023,6 +1140,7 @@ class ImageUploaderGUI:
         
         # Create details window
         details_window = tk.Toplevel(self.root)
+        self._style_subwindow(details_window)
         if len(selection) == 1:
             # Single selection - get specific info
             item = self.tree.item(selection[0])
@@ -1284,6 +1402,7 @@ class ImageUploaderGUI:
         
         # Create designer window
         designer_window = tk.Toplevel(self.root)
+        self._style_subwindow(designer_window)
         designer_window.title("Layout Designer")
         designer_window.geometry("1000x800")
         designer_window.transient(self.root)
@@ -1318,7 +1437,7 @@ class ImageUploaderGUI:
                                    values=sorted(groups_dict.keys()), width=20, state='readonly')
         group_combo.pack(fill=tk.X)
         
-        group_info_label = ttk.Label(group_frame, text="", foreground="gray", wraplength=200)
+        group_info_label = ttk.Label(group_frame, text="", foreground="#555555", wraplength=200)
         group_info_label.pack(pady=(5, 0))
         
         # Region tools
@@ -1326,8 +1445,7 @@ class ImageUploaderGUI:
         tools_frame.pack(fill=tk.X, pady=(0, 10))
         
         ttk.Label(tools_frame, text="Click and drag on canvas\nto create regions", 
-                 foreground="gray").pack(pady=(0, 10))
-        
+                 foreground="#555555").pack(pady=(0, 10))
         # Quick layouts
         quick_frame = ttk.LabelFrame(left_controls, text="Quick Layouts", padding="10")
         quick_frame.pack(fill=tk.X, pady=(0, 10))
@@ -1400,6 +1518,7 @@ class ImageUploaderGUI:
                     if len(identifiers) > 1:
                         # Simple dialog to pick identifier
                         choice_win = tk.Toplevel(designer_window)
+                        self._style_subwindow(choice_win)
                         choice_win.title("Select Image Type")
                         choice_win.geometry("300x200")
                         choice_win.transient(designer_window)
@@ -1609,6 +1728,7 @@ class ImageUploaderGUI:
         
         # Create selection dialog
         selection_window = tk.Toplevel(self.root)
+        self._style_subwindow(selection_window)
         selection_window.title("Generate PowerPoint")
         selection_window.geometry("500x600")
         selection_window.transient(self.root)
@@ -1719,6 +1839,7 @@ class ImageUploaderGUI:
             
             # Create preview window
             preview_window = tk.Toplevel(selection_window)
+            self._style_subwindow(preview_window)
             preview_window.title("Slide Preview")
             preview_window.geometry("1100x700")
             
@@ -2018,7 +2139,7 @@ class ImageUploaderGUI:
                 if num_images > 2:
                     info += f" ... +{num_images - 2} more"
                 
-                ttk.Label(slide_frame, text=info, foreground='gray').pack(anchor='w', pady=(5, 0))
+                ttk.Label(slide_frame, text=info, foreground='#555555').pack(anchor='w', pady=(5, 0))
             
             canvas.pack(side="left", fill="both", expand=True)
             scrollbar.pack(side="right", fill="y")
@@ -2093,6 +2214,7 @@ class ImageUploaderGUI:
         if not silent:
             # Show checking message
             self.checking_dialog = tk.Toplevel(self.root)
+            self._style_subwindow(self.checking_dialog)
             self.checking_dialog.title("Checking for Updates")
             self.checking_dialog.geometry("300x100")
             self.checking_dialog.transient(self.root)
@@ -2133,6 +2255,7 @@ class ImageUploaderGUI:
     def _show_update_dialog(self, update_info):
         """Show dialog with update information"""
         dialog = tk.Toplevel(self.root)
+        self._style_subwindow(dialog)
         dialog.title("Update Available")
         dialog.geometry("500x400")
         dialog.transient(self.root)
@@ -2191,6 +2314,7 @@ class ImageUploaderGUI:
     def show_about(self):
         """Show about dialog"""
         dialog = tk.Toplevel(self.root)
+        self._style_subwindow(dialog)
         dialog.title(f"About {__app_name__}")
         dialog.geometry("400x300")
         dialog.transient(self.root)
