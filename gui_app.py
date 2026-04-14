@@ -337,7 +337,7 @@ class ImageUploaderGUI:
         help_frame.columnconfigure(0, weight=1)
         
         help_label = ttk.Label(help_frame,
-                              text="💡 Click & drag to select multiple images, Ctrl+Click to add/remove",
+                              text="💡 Click & drag to select multiple images, Ctrl+Click to add/remove, Shift+Up/Down to extend",
                               style='Muted.TLabel')
         help_label.grid(row=0, column=0, sticky=tk.W)
         
@@ -402,11 +402,16 @@ class ImageUploaderGUI:
         self.drag_start_y = None
         self.drag_start_item = None
         self.is_dragging = False
+        self.selection_anchor_item = None
         
         # Bind drag selection events
         self.tree.bind("<ButtonPress-1>", self.on_drag_start)
         self.tree.bind("<B1-Motion>", self.on_drag_motion)
         self.tree.bind("<ButtonRelease-1>", self.on_drag_end)
+
+        # Keyboard range selection: hold Shift + Up/Down to extend selection.
+        self.tree.bind("<Shift-Up>", lambda e: self.extend_selection_with_keyboard(-1))
+        self.tree.bind("<Shift-Down>", lambda e: self.extend_selection_with_keyboard(1))
         
         # Preview panel with close button
         preview_frame = ttk.LabelFrame(right_panel, text="Preview", padding="10")
@@ -946,6 +951,43 @@ class ImageUploaderGUI:
         
         # Small delay to allow tree selection to update
         self.root.after(10, self._update_preview_from_click)
+
+    def extend_selection_with_keyboard(self, direction):
+        """Extend Treeview selection by one row using Shift+Up/Down."""
+        items = list(self.tree.get_children())
+        if not items:
+            return "break"
+
+        focus_item = self.tree.focus()
+        if focus_item not in items:
+            selection = self.tree.selection()
+            if selection and selection[-1] in items:
+                focus_item = selection[-1]
+            else:
+                focus_item = items[0]
+
+        current_index = items.index(focus_item)
+        target_index = max(0, min(len(items) - 1, current_index + direction))
+        target_item = items[target_index]
+
+        if self.selection_anchor_item in items:
+            anchor_item = self.selection_anchor_item
+        else:
+            anchor_item = focus_item
+            self.selection_anchor_item = anchor_item
+
+        anchor_index = items.index(anchor_item)
+        start_index = min(anchor_index, target_index)
+        end_index = max(anchor_index, target_index)
+        range_items = items[start_index:end_index + 1]
+
+        self.tree.selection_set(range_items)
+        self.tree.focus(target_item)
+        self.tree.see(target_item)
+
+        # Keep existing UI updates consistent with mouse-driven selection changes.
+        self.on_selection_change(None)
+        return "break"
     
     def on_selection_change(self, event):
         """Handle selection change (from arrow keys or any other navigation)"""
@@ -1053,6 +1095,7 @@ class ImageUploaderGUI:
             else:  # Control key not held
                 # Clear current selection and select this item
                 self.tree.selection_set(item)
+                self.selection_anchor_item = item
         
         # Call the original single-click handler only if Ctrl is not held
         if not (event.state & 0x4):
@@ -1118,6 +1161,7 @@ class ImageUploaderGUI:
                 else:
                     # Normal click - select just this item
                     self.tree.selection_set(item)
+                    self.selection_anchor_item = item
         
         # Update selection status
         selection = self.tree.selection()
