@@ -35,18 +35,159 @@ class ImageIdentifier:
     """Handles extraction and classification of image identifiers from filenames"""
     
     # Primary identifiers that should be grouped by numerical prefix
-    GROUPABLE_IDENTIFIERS = ['UD', 'LD', 'MD', 'UVD', 'PDBSE', 'PDBSE1', 'BSE', 'SE', 'ABF', 'ADF']
+    DEFAULT_GROUPABLE_IDENTIFIERS = ['UD', 'LD', 'MD', 'UVD', 'PDBSE', 'PDBSE1', 'BSE', 'SE', 'ABF', 'ADF', 'HAADF', 'BF-S', 'BF']
+    GROUPABLE_IDENTIFIERS = DEFAULT_GROUPABLE_IDENTIFIERS.copy()
     
     # Secondary identifiers that are not grouped by number
-    NON_GROUPABLE_IDENTIFIERS = ['Spectrum', 'Spectra', 'Map', 'Maps', 'Electron Image']
+    DEFAULT_NON_GROUPABLE_IDENTIFIERS = ['Spectrum', 'Spectra', 'Map', 'Maps', 'Electron Image']
+    NON_GROUPABLE_IDENTIFIERS = DEFAULT_NON_GROUPABLE_IDENTIFIERS.copy()
     
     # Identifiers that should extract trailing numbers for grouping
     TRAILING_NUMBER_IDENTIFIERS = ['Map', 'Maps', 'Electron Image', 'Spectrum', 'Spectra']
     
     # Spectrum identifiers (for special horizontal layout)
     SPECTRUM_IDENTIFIERS = ['Spectrum', 'Spectra']
+
+    # Microscopy image types that should be extracted anywhere in filename
+    MICROSCOPY_IDENTIFIERS = ['BF-S', 'HAADF', 'BF']
     
-    ALL_IDENTIFIERS = GROUPABLE_IDENTIFIERS + NON_GROUPABLE_IDENTIFIERS
+    CUSTOM_TYPES_FILE = os.path.join(get_app_data_dir(), "custom_image_types.json")
+    ALL_IDENTIFIERS = []
+
+    @classmethod
+    def _rebuild_all_identifiers(cls):
+        """Refresh the flattened identifier list in deterministic order."""
+        cls.ALL_IDENTIFIERS = cls.GROUPABLE_IDENTIFIERS + cls.NON_GROUPABLE_IDENTIFIERS
+
+    @classmethod
+    def _save_custom_types(cls):
+        """Persist custom identifier lists to app data."""
+        payload = {
+            'groupable': [
+                identifier for identifier in cls.GROUPABLE_IDENTIFIERS
+                if identifier not in cls.DEFAULT_GROUPABLE_IDENTIFIERS
+            ],
+            'non_groupable': [
+                identifier for identifier in cls.NON_GROUPABLE_IDENTIFIERS
+                if identifier not in cls.DEFAULT_NON_GROUPABLE_IDENTIFIERS
+            ]
+        }
+
+        with open(cls.CUSTOM_TYPES_FILE, 'w') as f:
+            json.dump(payload, f, indent=2)
+
+    @classmethod
+    def _load_custom_types(cls):
+        """Load persisted custom identifier lists from app data."""
+        cls.GROUPABLE_IDENTIFIERS = cls.DEFAULT_GROUPABLE_IDENTIFIERS.copy()
+        cls.NON_GROUPABLE_IDENTIFIERS = cls.DEFAULT_NON_GROUPABLE_IDENTIFIERS.copy()
+
+        if os.path.exists(cls.CUSTOM_TYPES_FILE):
+            try:
+                with open(cls.CUSTOM_TYPES_FILE, 'r') as f:
+                    payload = json.load(f)
+
+                custom_groupable = payload.get('groupable', [])
+                custom_non_groupable = payload.get('non_groupable', [])
+
+                for identifier in custom_groupable:
+                    if identifier not in cls.GROUPABLE_IDENTIFIERS:
+                        cls.GROUPABLE_IDENTIFIERS.append(identifier)
+
+                for identifier in custom_non_groupable:
+                    if identifier not in cls.NON_GROUPABLE_IDENTIFIERS:
+                        cls.NON_GROUPABLE_IDENTIFIERS.append(identifier)
+            except Exception:
+                # Corrupt or unreadable file should not block app startup.
+                pass
+
+        cls._rebuild_all_identifiers()
+
+    @classmethod
+    def get_all_identifiers(cls) -> List[str]:
+        """Get all built-in and custom identifier types."""
+        return cls.ALL_IDENTIFIERS.copy()
+
+    @classmethod
+    def add_custom_identifier(cls, identifier: str, grouped: bool = True) -> Tuple[bool, str]:
+        """Add a custom identifier type and persist it for future sessions."""
+        cleaned = identifier.strip()
+        if not cleaned:
+            return (False, "Image type cannot be empty.")
+
+        if len(cleaned) > 40:
+            return (False, "Image type is too long (max 40 characters).")
+
+        if not re.match(r'^[A-Za-z0-9][A-Za-z0-9\-\s_]*$', cleaned):
+            return (False, "Use letters, numbers, spaces, dashes, or underscores.")
+
+        existing_map = {name.lower(): name for name in cls.ALL_IDENTIFIERS}
+        if cleaned.lower() in existing_map:
+            return (False, f"Image type '{existing_map[cleaned.lower()]}' already exists.")
+
+        if grouped:
+            cls.GROUPABLE_IDENTIFIERS.append(cleaned)
+        else:
+            cls.NON_GROUPABLE_IDENTIFIERS.append(cleaned)
+
+        cls._rebuild_all_identifiers()
+
+        try:
+            cls._save_custom_types()
+        except Exception as exc:
+            return (False, f"Type added in memory, but failed to persist: {exc}")
+
+        return (True, f"Image type '{cleaned}' added successfully.")
+
+    @staticmethod
+    def _normalize_numeric_group(group_value: str) -> Optional[str]:
+        """Normalize numeric group labels to zero-padded 4-digit strings."""
+        if not group_value or not group_value.isdigit():
+            return None
+
+        try:
+            group_num = int(group_value)
+        except ValueError:
+            return None
+
+        return str(group_num).zfill(4)
+
+    @staticmethod
+    def _extract_numeric_group(name_without_ext: str) -> Optional[str]:
+        """Extract a numeric group from leading prefix or trailing suffix."""
+        # Prefix example: 0017-1424_xxx
+        prefix_match = re.search(r'^\s*(\d{1,6})(?=[\s_\-]|$)', name_without_ext)
+        if prefix_match:
+            normalized = ImageIdentifier._normalize_numeric_group(prefix_match.group(1))
+            if normalized:
+                return normalized
+
+        # Suffix example: sample_name_17 or sample-name-17
+        suffix_match = re.search(r'(?:[\s_\-])(\d{1,6})\s*$', name_without_ext)
+        if suffix_match:
+            normalized = ImageIdentifier._normalize_numeric_group(suffix_match.group(1))
+            if normalized:
+                return normalized
+
+        return None
+
+    @staticmethod
+    def _extract_microscopy_type(name_without_ext: str) -> Optional[str]:
+        """Extract microscopy-specific image type with precedence for specific labels."""
+        for identifier in ImageIdentifier.MICROSCOPY_IDENTIFIERS:
+            # BF should not match BF-S (handled by BF-S earlier in the list).
+            if identifier == 'BF':
+                pattern = re.compile(r'(?:^|[\s_\-\(])BF(?!-S)(?:$|[\s_\-\)\d])', re.IGNORECASE)
+            else:
+                pattern = re.compile(
+                    r'(?:^|[\s_\-\(])' + re.escape(identifier) + r'(?:$|[\s_\-\)\d])',
+                    re.IGNORECASE
+                )
+
+            if pattern.search(name_without_ext):
+                return identifier
+
+        return None
     
     @staticmethod
     def format_group_label(numerical_prefix: Optional[str], identifier: Optional[str]) -> str:
@@ -98,10 +239,19 @@ class ImageIdentifier:
         """
         # Remove file extension
         name_without_ext = os.path.splitext(filename)[0]
+
+        # Generic group extraction from either numeric prefix or suffix.
+        # This allows grouping even when there is no explicit legacy identifier token.
+        fallback_numerical_prefix = ImageIdentifier._extract_numeric_group(name_without_ext)
+
+        # Prefer explicit microscopy labels when present.
+        microscopy_type = ImageIdentifier._extract_microscopy_type(name_without_ext)
+        if microscopy_type:
+            return (fallback_numerical_prefix, microscopy_type, microscopy_type)
         
         # Try to find any identifier in the filename
         # Sort identifiers by length (longest first) to match more specific ones first
-        sorted_identifiers = sorted(ImageIdentifier.ALL_IDENTIFIERS, key=len, reverse=True)
+        sorted_identifiers = sorted(ImageIdentifier.get_all_identifiers(), key=len, reverse=True)
         
         for identifier in sorted_identifiers:
             # Case-insensitive search with flexible word boundaries (space, underscore, dash, or string boundaries)
@@ -145,6 +295,8 @@ class ImageIdentifier:
                         return (numerical_prefix, identifier, full_match)
                     
                     # Identifier found but no number - still valid
+                    if fallback_numerical_prefix:
+                        return (fallback_numerical_prefix, identifier, found_identifier)
                     return (None, identifier, found_identifier)
                 else:
                     # Non-groupable identifier (Spectrum, Map, etc.)
@@ -182,9 +334,15 @@ class ImageIdentifier:
                             return (numerical_prefix, identifier, found_identifier)
                     
                     # No grouping if no trailing number found
+                    if fallback_numerical_prefix:
+                        return (fallback_numerical_prefix, identifier, found_identifier)
                     return (None, identifier, found_identifier)
         
-        # No identifier found
+        # No explicit identifier found: if grouped numerically, default image type to Maps.
+        if fallback_numerical_prefix:
+            return (fallback_numerical_prefix, 'Maps', 'AutoGroup')
+
+        # No identifier and no numeric grouping found
         return (None, None, None)
     
     @staticmethod
@@ -369,6 +527,35 @@ class ImageIndex:
             group.sort(key=ImageIdentifier.get_sort_key)
         
         return grouped
+
+    def reparse_metadata(self) -> Dict[str, int]:
+        """Re-parse filename metadata for all indexed images and persist updates."""
+        total = len(self.images)
+        updated = 0
+
+        for img in self.images:
+            metadata = img.setdefault('metadata', {})
+            old_identifier = metadata.get('identifier')
+            old_prefix = metadata.get('numerical_prefix')
+            old_match = metadata.get('identifier_match')
+
+            new_prefix, new_identifier, new_match = ImageIdentifier.extract_identifier_and_number(img['filename'])
+
+            metadata['identifier'] = new_identifier
+            metadata['numerical_prefix'] = new_prefix
+            metadata['identifier_match'] = new_match
+
+            if (old_identifier != new_identifier or
+                old_prefix != new_prefix or
+                old_match != new_match):
+                updated += 1
+
+        self.save_index()
+        return {
+            'total': total,
+            'updated': updated,
+            'unchanged': total - updated
+        }
     
     def remove_image(self, image_id: int) -> bool:
         """Remove image from index"""
@@ -502,6 +689,13 @@ class ImageUploader:
     def get_statistics(self) -> Dict:
         """Get statistics about uploaded images"""
         return self.index.get_stats()
+
+    def reparse_and_resort_current_index(self) -> Dict[str, int]:
+        """Rebuild metadata for indexed files to apply latest parsing/sorting rules."""
+        return self.index.reparse_metadata()
+
+
+ImageIdentifier._load_custom_types()
 
 
 def main():

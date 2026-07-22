@@ -3,7 +3,7 @@ Version information for PowerPoint Generator
 Update this file when releasing new versions
 """
 
-__version__ = "1.0.10"
+__version__ = "1.0.11"
 __app_name__ = "PowerPoint Generator"
 __bundle_id__ = "com.powerpoint.generator"
 __author__ = "Leo Soler"
@@ -11,6 +11,7 @@ __github_repo__ = "GenericLeo/PowerPointGenerator"
 
 # Version history
 VERSION_HISTORY = {
+    "1.0.11": "Added in-app resort/reparse for indexed images and support for persistent custom image types.",
     "1.0.10": "Version bump for latest repository release.",
     "1.0.9": "Hotfix: Restored Shift+Up/Down keyboard range selection in file list.",
     "1.0.8": "Enhanced Ctrl+Click multi-select: additive first click, removal requires second click on same file. Improved modifier detection for macOS.",

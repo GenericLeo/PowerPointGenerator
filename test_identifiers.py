@@ -26,6 +26,8 @@ test_filenames = [
     "0001 UD.tif",
     "0001 LD.tif",
     "0001 PDBSE.tif",
+    "0017-1424_6.70_Mx_STEM_HAADF-BF_15_nm BF-S.png",
+    "sample_area_42.png",
 ]
 
 print("=" * 80)

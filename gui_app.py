@@ -172,6 +172,12 @@ class ImageUploaderGUI:
         """Setup the menu bar"""
         menubar = tk.Menu(self.root)
         self.root.config(menu=menubar)
+
+        # Tools menu
+        tools_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Tools", menu=tools_menu)
+        tools_menu.add_command(label="Resort Current Image List", command=self.resort_current_list)
+        tools_menu.add_command(label="Add Image Type...", command=self.add_image_type)
         
         # Help menu
         help_menu = tk.Menu(menubar, tearoff=0)
@@ -218,6 +224,12 @@ class ImageUploaderGUI:
         
         ttk.Button(data_group, text="🎨 Edit Type", 
                   command=self.edit_type, width=10).pack(side=tk.LEFT, padx=2)
+
+        ttk.Button(data_group, text="↕ Resort", 
+              command=self.resort_current_list, width=9).pack(side=tk.LEFT, padx=2)
+
+        ttk.Button(data_group, text="➕ Add Type", 
+              command=self.add_image_type, width=10).pack(side=tk.LEFT, padx=2)
         
         # Group 2: Creation Tools
         create_group = ttk.Frame(actions_container)
@@ -299,7 +311,7 @@ class ImageUploaderGUI:
         self.identifier_filter_var = tk.StringVar(value="All Types")
         self.identifier_combo = ttk.Combobox(search_frame, textvariable=self.identifier_filter_var,
                                             state='readonly', width=27)
-        self.identifier_combo['values'] = ["All Types"] + ImageIdentifier.ALL_IDENTIFIERS
+        self.identifier_combo['values'] = ["All Types"] + ImageIdentifier.get_all_identifiers()
         self.identifier_combo.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=2)
         self.identifier_combo.bind('<<ComboboxSelected>>', lambda e: self.apply_filters())
         
@@ -870,9 +882,11 @@ class ImageUploaderGUI:
         
         type_var = tk.StringVar()
         type_combo = ttk.Combobox(type_frame, textvariable=type_var, 
-                                 values=ImageIdentifier.ALL_IDENTIFIERS, 
+                                 values=ImageIdentifier.get_all_identifiers(), 
                                  state='readonly', width=40)
         type_combo.pack(fill=tk.X)
+
+        ttk.Button(type_frame, text="Add New Type...", command=self.add_image_type).pack(anchor='w', pady=(8, 0))
         
         # Set current type if all selected images have the same type
         current_types = set()
@@ -914,7 +928,7 @@ class ImageUploaderGUI:
                 messagebox.showwarning("No Type Selected", "Please select an image type.")
                 return
             
-            if new_type not in ImageIdentifier.ALL_IDENTIFIERS:
+            if new_type not in ImageIdentifier.get_all_identifiers():
                 messagebox.showerror("Invalid Type", "Selected type is not valid.")
                 return
             
@@ -939,6 +953,87 @@ class ImageUploaderGUI:
         
         # Focus on combobox
         type_combo.focus()
+
+    def add_image_type(self):
+        """Add a custom image type that can be detected from filenames and edited in-app."""
+        add_window = tk.Toplevel(self.root)
+        self._style_subwindow(add_window)
+        add_window.title("Add Image Type")
+        add_window.geometry("500x320")
+        add_window.transient(self.root)
+        add_window.grab_set()
+
+        main_frame = ttk.Frame(add_window, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(main_frame, text="Add Custom Image Type",
+                 font=('Helvetica', 12, 'bold')).pack(anchor='w', pady=(0, 10))
+
+        ttk.Label(main_frame, text="Type Name:").pack(anchor='w', pady=(0, 5))
+        type_var = tk.StringVar()
+        type_entry = ttk.Entry(main_frame, textvariable=type_var, width=40)
+        type_entry.pack(fill=tk.X)
+
+        grouped_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            main_frame,
+            text="Treat as grouped type (uses numeric prefix/suffix for grouping)",
+            variable=grouped_var
+        ).pack(anchor='w', pady=(10, 0))
+
+        info_text = (
+            "Examples: BF2, SAED, EDS-Map\n"
+            "Grouped types sort with numbered groups.\n"
+            "Non-grouped types sort with Map/Spectrum categories."
+        )
+        ttk.Label(main_frame, text=info_text, foreground="#555555", justify=tk.LEFT).pack(anchor='w', pady=(10, 0))
+
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(pady=15)
+
+        def add_type():
+            identifier = type_var.get().strip()
+            success, message = ImageIdentifier.add_custom_identifier(identifier, grouped=grouped_var.get())
+            if success:
+                # Update identifier filter options immediately.
+                self.identifier_combo['values'] = ["All Types"] + ImageIdentifier.get_all_identifiers()
+                self.identifier_filter_var.set("All Types")
+                messagebox.showinfo("Type Added", message)
+                add_window.destroy()
+            else:
+                messagebox.showerror("Could Not Add Type", message)
+
+        ttk.Button(button_frame, text="Add", command=add_type).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Cancel", command=add_window.destroy).pack(side=tk.LEFT, padx=5)
+
+        type_entry.focus()
+
+    def resort_current_list(self):
+        """Re-parse existing indexed filenames and refresh sorting/grouping metadata."""
+        images = self.uploader.list_images()
+        if not images:
+            messagebox.showinfo("No Images", "No images are currently indexed.")
+            return
+
+        confirmed = messagebox.askyesno(
+            "Resort Current List",
+            "Re-parse filenames for all indexed images using current grouping/type rules?\n\n"
+            "This updates metadata only. Image files on disk are unchanged."
+        )
+        if not confirmed:
+            return
+
+        result = self.uploader.reparse_and_resort_current_index()
+
+        self.refresh_image_list()
+        self.update_stats()
+
+        messagebox.showinfo(
+            "Resort Complete",
+            f"Processed {result['total']} image(s).\n"
+            f"Updated: {result['updated']}\n"
+            f"Unchanged: {result['unchanged']}"
+        )
     
     def clear_preview(self):
         """Clear the preview panel"""
