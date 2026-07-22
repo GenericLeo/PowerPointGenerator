@@ -881,12 +881,26 @@ class ImageUploaderGUI:
         ttk.Label(type_frame, text="New Image Type:").pack(anchor='w', pady=(0, 5))
         
         type_var = tk.StringVar()
-        type_combo = ttk.Combobox(type_frame, textvariable=type_var, 
-                                 values=ImageIdentifier.get_all_identifiers(), 
-                                 state='readonly', width=40)
-        type_combo.pack(fill=tk.X)
 
-        ttk.Button(type_frame, text="Add New Type...", command=self.add_image_type).pack(anchor='w', pady=(8, 0))
+        type_row = ttk.Frame(type_frame)
+        type_row.pack(fill=tk.X)
+
+        type_combo = ttk.Combobox(type_row, textvariable=type_var,
+                     values=ImageIdentifier.get_all_identifiers(),
+                     state='normal', width=34)
+        type_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
+
+        def open_add_type_dialog():
+            """Open add-type dialog and sync the selection back into this editor."""
+            pending_name = type_var.get().strip()
+
+            def on_type_added(added_type):
+                type_combo['values'] = ImageIdentifier.get_all_identifiers()
+                type_var.set(added_type)
+
+            self.add_image_type(on_added=on_type_added, initial_name=pending_name)
+
+        ttk.Button(type_row, text="Add New Type...", command=open_add_type_dialog).pack(side=tk.LEFT)
         
         # Set current type if all selected images have the same type
         current_types = set()
@@ -929,8 +943,30 @@ class ImageUploaderGUI:
                 return
             
             if new_type not in ImageIdentifier.get_all_identifiers():
-                messagebox.showerror("Invalid Type", "Selected type is not valid.")
-                return
+                create_type = messagebox.askyesno(
+                    "New Type",
+                    f"'{new_type}' is not an existing image type.\n\n"
+                    "Would you like to add it now?"
+                )
+                if not create_type:
+                    messagebox.showerror("Invalid Type", "Selected type is not valid.")
+                    return
+
+                grouped = messagebox.askyesno(
+                    "Grouping Behavior",
+                    "Should this new type be treated as grouped\n"
+                    "(uses numeric prefix/suffix for grouping)?"
+                )
+
+                success, message = ImageIdentifier.add_custom_identifier(new_type, grouped=grouped)
+                if not success:
+                    messagebox.showerror("Could Not Add Type", message)
+                    return
+
+                # Update type lists immediately across the app.
+                type_combo['values'] = ImageIdentifier.get_all_identifiers()
+                self.identifier_combo['values'] = ["All Types"] + ImageIdentifier.get_all_identifiers()
+                self.identifier_filter_var.set("All Types")
             
             # Update each selected image
             for img_id in selected_ids:
@@ -954,7 +990,7 @@ class ImageUploaderGUI:
         # Focus on combobox
         type_combo.focus()
 
-    def add_image_type(self):
+    def add_image_type(self, on_added=None, initial_name=""):
         """Add a custom image type that can be detected from filenames and edited in-app."""
         add_window = tk.Toplevel(self.root)
         self._style_subwindow(add_window)
@@ -970,7 +1006,7 @@ class ImageUploaderGUI:
                  font=('Helvetica', 12, 'bold')).pack(anchor='w', pady=(0, 10))
 
         ttk.Label(main_frame, text="Type Name:").pack(anchor='w', pady=(0, 5))
-        type_var = tk.StringVar()
+        type_var = tk.StringVar(value=initial_name)
         type_entry = ttk.Entry(main_frame, textvariable=type_var, width=40)
         type_entry.pack(fill=tk.X)
 
@@ -998,6 +1034,8 @@ class ImageUploaderGUI:
                 # Update identifier filter options immediately.
                 self.identifier_combo['values'] = ["All Types"] + ImageIdentifier.get_all_identifiers()
                 self.identifier_filter_var.set("All Types")
+                if callable(on_added):
+                    on_added(identifier)
                 messagebox.showinfo("Type Added", message)
                 add_window.destroy()
             else:
